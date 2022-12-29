@@ -1,0 +1,54 @@
+# Base image from XXX to use for both stages
+ARG BASE_IMAGE=node:16-bullseye
+ 
+# ------------------------> The base image with other bits
+FROM ${BASE_IMAGE} as base
+ 
+USER root
+ 
+# Other stuff goes here...
+ 
+# ------------------------> The build image
+FROM base as build
+ 
+# Create app directory
+RUN mkdir -p /usr/src/poinz
+WORKDIR /usr/src/poinz
+COPY --chown=0:0  . /usr/src/poinz
+COPY --chown=0:0  .git /usr/src/poinz
+#RUN chown -R 0:0 /usr/src/poinz
+ 
+RUN npm install
+RUN npm run build
+ 
+# ------------------------> The production image
+ 
+FROM base
+ 
+#### App specific stuff
+ 
+# Create app directory
+RUN mkdir -p /usr/src/poinz/public
+RUN mkdir -p /usr/src/poinz/src
+RUN chown -R 0:0 /usr/src/poinz
+WORKDIR /usr/src/poinz
+ 
+# Bundle app source
+COPY --chown=0:0 --from=build /usr/src/poinz/deploy/public /usr/src/poinz/public
+COPY --chown=0:0 --from=build /usr/src/poinz/deploy/src /usr/src/poinz/src
+COPY --chown=0:0 --from=build /usr/src/poinz/deploy/package.json /usr/src/poinz
+COPY --chown=0:0 --from=build /usr/src/poinz/deploy/package-lock.json /usr/src/poinz 
+
+# install app dependencies
+RUN npm install --omit=dev
+ 
+# from openshift website
+RUN chgrp -R 0 /usr/src/poinz && chmod -R g=u /usr/src/poinz
+ 
+# expose port 3000
+EXPOSE 3000
+ 
+#USER node
+#USER 1001
+ 
+CMD npm start
